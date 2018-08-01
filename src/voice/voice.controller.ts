@@ -43,9 +43,9 @@ export class VoiceController {
         const isFile = stats.isFile();
         if (isFile) {
           res.set({
-            'Content-Type': 'audio/mp3', // 告诉浏览器这是一个二进制文件
-            'Content-Disposition': 'attachment; filename=' + this.fileName + '.mp3', // 告诉浏览器这是一个需要下载的文件
-            'Content-Length': stats.size,  // 文件大小
+            'Content-Type': 'audio/mp3',
+            'Content-Disposition': 'attachment; filename=' + this.fileName + '.mp3',
+            'Content-Length': stats.size,
             'code': '200',
           });
           createReadStream('audio/' + this.fileName + '.mp3').pipe(res);
