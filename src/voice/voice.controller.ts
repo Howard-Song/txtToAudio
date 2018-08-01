@@ -1,7 +1,7 @@
-import { Get, Controller } from '@nestjs/common';
+import { Get, Controller, Res, HttpStatus } from '@nestjs/common';
 import { HttpClient, speech } from 'baidu-aip-sdk';
 import { Subject } from 'rxjs';
-import { writeFileSync, readFile, readdirSync, createWriteStream, createReadStream, mkdir, exists, unlink, rmdir } from 'fs';
+import { writeFileSync, readFile, readdirSync, createWriteStream, createReadStream, mkdir, exists, unlink, rmdir, statSync } from 'fs';
 
 @Controller('voice')
 export class VoiceController {
@@ -33,19 +33,31 @@ export class VoiceController {
   constructor() { }
 
   @Get()
-  root(res) {
+  root(@Res() res) {
     this.subject = new Subject();
     this.subject.subscribe({
       next: (msg) => {
-        return msg;
+        // 'audio/'
+        // res.status(HttpStatus.OK).json({ code: '200', result: '生成mp3' });
+        const stats = statSync('audio/' + this.fileName + '.mp3');
+        const isFile = stats.isFile();
+        if (isFile) {
+          res.set({
+            'Content-Type': 'audio/mp3', // 告诉浏览器这是一个二进制文件
+            'Content-Disposition': 'attachment; filename=' + this.fileName + '.mp3', // 告诉浏览器这是一个需要下载的文件
+            'Content-Length': stats.size,  // 文件大小
+            'code': '200',
+          });
+          createReadStream('audio/' + this.fileName + '.mp3').pipe(res);
+        }
       },
     });
     this.fileName = 'test';
     this.fieldArray = [];
-    this.getText().then(text => {
+    return this.getText().then(text => {
       this.text = text;
       this.translateIndex = 0;
-      this.writeFile();
+      return this.writeFile();
     });
   }
   // 从指定路径中获取文字对象，超过500字分割成数组
@@ -77,7 +89,6 @@ export class VoiceController {
   // 根据文字数组转换成多个MP3文件
   writeFile() {
     if (this.fieldArray[this.translateIndex]) {
-      console.log(this.translateIndex);
       this.client.text2audio(this.fieldArray[this.translateIndex], { spd: 5, per: 3 }).then(result => {
         if (result.data) {
           writeFileSync('audio/' + this.fileName + '/' + this.translateIndex + '.mp3', result.data);
@@ -92,7 +103,7 @@ export class VoiceController {
         // 发生网络错误
       });
     } else {
-      this.sortFiles();
+      return this.sortFiles();
     }
   }
   // 从生成MP3路径读取所有文件并排序
@@ -106,7 +117,7 @@ export class VoiceController {
     this.files.forEach(file => {
       this.clips.push(file);
     });
-    this.mergeFile();
+    return this.mergeFile();
   }
   // 合并所有MP3文件
   mergeFile() {
@@ -114,12 +125,12 @@ export class VoiceController {
     this.stream = createReadStream(this.currentfile);
     this.stream.pipe(this.targetFile, { end: false });
     this.stream.on('end', () => {
-      console.log(this.currentfile + ' appened');
+      // console.log(this.currentfile + ' appened');
       unlink(this.currentfile, () => { });
       if (!this.clips.length) {
         this.targetFile.end('Done');
         rmdir('audio/' + this.fileName, () => { });
-        this.subject.next('生成mp3');
+        this.subject.next(this.fileName);
       } else {
         this.mergeFile();
       }

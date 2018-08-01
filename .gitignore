@@ -390,3 +390,6 @@ Temporary Items
 dokcer-compose.yml
 .env
 dist
+node_modules
+audio
+
